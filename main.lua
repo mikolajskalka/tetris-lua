@@ -66,8 +66,11 @@ end
 
 local function clearLines()
     local linesCleared = 0
-    for y = gridHeight, 1, -1 do
+    local y = gridHeight
+
+    while y > 0 do
         local fullLine = true
+        -- Check if line is full
         for x = 1, gridWidth do
             if grid[y][x] == 0 then
                 fullLine = false
@@ -75,12 +78,21 @@ local function clearLines()
             end
         end
         if fullLine then
-            table.remove(grid, y)
-            table.insert(grid, 1, {})
+            -- Move all lines above down
+            for moveY = y, 2, -1 do
+                grid[moveY] = grid[moveY - 1]
+            end
+            -- Create new empty line at top
+            grid[1] = {}
             for x = 1, gridWidth do
                 grid[1][x] = 0
             end
             linesCleared = linesCleared + 1
+            -- Stay on same y since we moved everything down
+            -- and need to check this row again
+        else
+            -- Only move to next row if we didn't clear a line
+            y = y - 1
         end
     end
     if linesCleared > 0 then
