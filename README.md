@@ -11,7 +11,7 @@ This is a simple yet fully functional Tetris game featuring:
 - Save/Load game functionality
 - Pause menu
 - Game over state
-- Colorful tetromino pieces
+- Colorful pieces
 
 ## Controls
 
