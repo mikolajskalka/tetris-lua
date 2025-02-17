@@ -29,19 +29,81 @@ local score = 0
 local sounds = {}
 local isPaused = false
 local saveFileName = "tetris_save.txt"
+local message = ""
+local messageTimer = 0
+local messageDuration = 5 -- seconds
 
--- Add this function to save the game state
 local function saveGame()
-    local saveData = {
-        grid = grid,
-        score = score,
-        currentPiece = currentPiece,
-        currentColor = currentColor,
-        pieceX = pieceX,
-        pieceY = pieceY
-    }
-    local serialized = love.data.encode('string', 'base64', love.data.compress('string', 'zlib', love.serialization.serialize(saveData)))
-    love.filesystem.write(saveFileName, serialized)
+    local file = love.filesystem.newFile(saveFileName, "w")
+    if file then
+        file:write("score=" .. score .. "\n")
+        file:write("pieceX=" .. pieceX .. "\n")
+        file:write("pieceY=" .. pieceY .. "\n")
+        
+        -- Convert currentPiece to a flat string
+        local pieceString = ""
+        for _, block in ipairs(currentPiece) do
+            pieceString = pieceString .. block[1] .. "," .. block[2] .. ";"
+        end
+        file:write("currentPiece=" .. pieceString .. "\n")
+        
+        -- Convert currentColor to a flat string
+        local colorString = table.concat(currentColor, ",")
+        file:write("currentColor=" .. colorString .. "\n")
+        
+        file:write("grid=")
+        for y = 1, gridHeight do
+            for x = 1, gridWidth do
+                file:write(grid[y][x] .. ",")
+            end
+        end
+        file:write("\n")
+        file:close()
+        
+        message = "Game saved successfully!"
+        messageTimer = messageDuration
+    end
+end
+
+local function loadGame()
+    if not love.filesystem.getInfo(saveFileName) then return end
+
+    for line in love.filesystem.lines(saveFileName) do
+        local key, value = line:match("([^=]+)=([^=]+)")
+        if key == "score" then
+            score = tonumber(value)
+        elseif key == "pieceX" then
+            pieceX = tonumber(value)
+        elseif key == "pieceY" then
+            pieceY = tonumber(value)
+        elseif key == "currentPiece" then
+            currentPiece = {}
+            for block in value:gmatch("([^;]+)") do
+                local x, y = block:match("([^,]+),([^,]+)")
+                table.insert(currentPiece, { tonumber(x), tonumber(y) })
+            end
+        elseif key == "currentColor" then
+            currentColor = {}
+            for color in value:gmatch("([^,]+)") do
+                table.insert(currentColor, tonumber(color))
+            end
+        elseif key == "grid" then
+            local gridValues = {}
+            for val in value:gmatch("([^,]+)") do
+                table.insert(gridValues, tonumber(val))
+            end
+            local index = 1
+            for y = 1, gridHeight do
+                for x = 1, gridWidth do
+                    grid[y][x] = gridValues[index]
+                    index = index + 1
+                end
+            end
+        end
+    end
+    
+    message = "Game loaded successfully!"
+    messageTimer = messageDuration
 end
 
 -- Helper functions
@@ -137,25 +199,6 @@ local function restartGame()
     spawnPiece()
 end
 
--- Add this function to load the game state
-local function loadGame()
-    if love.filesystem.getInfo(saveFileName) then
-        local content = love.filesystem.read(saveFileName)
-        local decoded = love.data.decode('string', 'base64', content)
-        local decompressed = love.data.decompress('string', 'zlib', decoded)
-        local saveData = love.serialization.deserialize(decompressed)
-        
-        grid = saveData.grid
-        score = saveData.score
-        currentPiece = saveData.currentPiece
-        currentColor = saveData.currentColor
-        pieceX = saveData.pieceX
-        pieceY = saveData.pieceY
-        gameOver = false
-        isPaused = false
-    end
-end
-
 -- Löve callbacks
 function love.load()
     love.window.setMode(gridWidth * blockSize, gridHeight * blockSize)
@@ -182,6 +225,10 @@ function love.update(dt)
             lockPiece()
             -- sounds.drop:play()
         end
+    end
+    
+    if messageTimer > 0 then
+        messageTimer = messageTimer - dt
     end
 end
 
@@ -265,11 +312,22 @@ function love.draw()
             menuX, menuY + 120, 
             160, 30)
     end
+
+    -- Draw save/load message
+    if messageTimer > 0 then
+        drawMessageWithBackground(message, 
+            gridWidth * blockSize / 2 - 60, 
+            gridHeight * blockSize / 2 - 100, 
+            200, 30)
+    end
 end
 
 function love.keypressed(key)
     if key == "escape" then
         isPaused = not isPaused
+        if not isPaused then
+            messageTimer = 0
+        end
         return
     end
     
